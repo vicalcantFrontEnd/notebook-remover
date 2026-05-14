@@ -1,0 +1,100 @@
+version: "3.9"
+
+# ============================================================
+# NotebookLM Watermark Remover — Full Stack
+# ============================================================
+# Services:
+#   watermark-api  →  FastAPI + Python processing (port 8000)
+#   n8n            →  Automation workflows (port 5678)
+#
+# Volumes:
+#   pipeline_data  →  SQLite DB (persists processed-file records)
+#   n8n_data       →  n8n workflows + credentials
+#   credentials    →  Google service account JSON (mount once)
+#
+# Usage:
+#   1. Copy your google_credentials.json to ./credentials/
+#   2. Copy .env.example to .env and fill in your values
+#   3. docker compose up -d
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # FastAPI Watermark Processing API
+  # ----------------------------------------------------------
+  watermark-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: watermark-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Google Drive
+      - WMR_GOOGLE_CREDENTIALS_PATH=/app/credentials/google_credentials.json
+      - WMR_DRIVE_ROOT_FOLDER_ID=${DRIVE_ROOT_FOLDER_ID}
+
+      # Bunny CDN
+      - WMR_BUNNY_API_KEY=${BUNNY_API_KEY}
+      - WMR_BUNNY_STORAGE_ZONE=${BUNNY_STORAGE_ZONE}
+      - WMR_BUNNY_STORAGE_HOSTNAME=${BUNNY_STORAGE_HOSTNAME:-storage.bunnycdn.com}
+      - WMR_BUNNY_PULL_ZONE_HOSTNAME=${BUNNY_PULL_ZONE_HOSTNAME}
+
+      # Pipeline defaults
+      - WMR_PIPELINE_VIDEO_METHOD=${PIPELINE_VIDEO_METHOD:-pixel}
+      - WMR_PIPELINE_IMAGE_METHOD=${PIPELINE_IMAGE_METHOD:-pixel}
+      - WMR_PIPELINE_PDF_METHOD=${PIPELINE_PDF_METHOD:-box}
+      - WMR_PIPELINE_SENSITIVITY=${PIPELINE_SENSITIVITY:-30}
+      - WMR_PIPELINE_TRIM_END_SECONDS=${PIPELINE_TRIM_END_SECONDS:-0}
+      - WMR_AUDIO_TRIM_END_SECONDS=${AUDIO_TRIM_END_SECONDS:-0}
+
+      # App settings
+      - WMR_CORS_ORIGINS=["http://localhost:3000","http://n8n:5678"]
+      - WMR_MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-1}
+    volumes:
+      # Google credentials (read-only)
+      - ./credentials:/app/credentials:ro
+      # Persistent pipeline SQLite DB
+      - pipeline_data:/app/data
+      # Temp files during processing (ephemeral is fine)
+      - pipeline_temp:/app/temp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/pipeline/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ----------------------------------------------------------
+  # n8n Automation
+  # ----------------------------------------------------------
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=${N8N_HOST:-0.0.0.0}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=${TIMEZONE:-America/Mexico_City}
+      # Allow the n8n → watermark-api connection on the internal network
+      - NODE_FUNCTION_ALLOW_EXTERNAL=httpx
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      watermark-api:
+        condition: service_healthy
+
+
+volumes:
+  pipeline_data:
+  pipeline_temp:
+  n8n_data:

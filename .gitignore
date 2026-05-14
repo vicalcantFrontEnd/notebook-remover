@@ -1,0 +1,37 @@
+# Environment & secrets
+.env
+credentials/
+*.json.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Runtime data
+temp/
+data/
+*.db
+
+# Node (frontend)
+node_modules/
+.next/
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Test/temp files
+*.mp4
+.claude/
+
+# Junk/accidental files
+=0.20.0
+=1.17.0
+CUsersvictoAppDataLocalTempopenapi.json
