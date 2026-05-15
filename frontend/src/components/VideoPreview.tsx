@@ -1,9 +1,9 @@
 "use client";
 import { useRef, useEffect, useCallback, useState } from "react";
 import { motion } from "framer-motion";
-import { Grid3x3, Square, ChevronsLeft, ChevronsRight, Play, Pause } from "lucide-react";
+import { Grid3x3, Square, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
 import type { Region, FileType } from "@/lib/types";
-import { getVideoStreamUrl } from "@/lib/api";
+import { getVideoStreamUrl, getPageImage } from "@/lib/api";
 
 interface VideoPreviewProps {
   fileId: string;
@@ -14,6 +14,7 @@ interface VideoPreviewProps {
   onRegionChange: (region: Region) => void;
   filename: string;
   fileType?: FileType;
+  pageCount?: number;
 }
 
 function formatTime(seconds: number): string {
@@ -44,17 +45,42 @@ export default function VideoPreview({
   onRegionChange,
   filename,
   fileType = "video",
+  pageCount = 0,
 }: VideoPreviewProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
   const canvasRef     = useRef<HTMLCanvasElement>(null);
   const containerRef  = useRef<HTMLDivElement>(null);
   const isVideo = fileType === "video";
+  const hasPages = (fileType === "pdf" || fileType === "pptx") && pageCount > 1;
 
   const [isPlaying,  setIsPlaying]  = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration,    setDuration]    = useState(0);
   const [isSeeking,   setIsSeeking]   = useState(false);
   const [videoError,  setVideoError]  = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageImage,   setPageImage]   = useState<string | null>(null);
+  const [pageLoading, setPageLoading] = useState(false);
+
+  const handlePageChange = useCallback(async (newPage: number) => {
+    if (newPage < 0 || newPage >= pageCount || pageLoading) return;
+    setCurrentPage(newPage);
+    if (newPage === 0) {
+      setPageImage(null); // use original frameBase64
+      return;
+    }
+    setPageLoading(true);
+    try {
+      const result = await getPageImage(fileId, newPage);
+      setPageImage(result.image_base64);
+    } catch (err) {
+      console.error("Error loading page:", err);
+    } finally {
+      setPageLoading(false);
+    }
+  }, [fileId, pageCount, pageLoading]);
+
+  const displayImage = currentPage === 0 ? frameBase64 : (pageImage ?? frameBase64);
 
   // ── Drag state (refs to avoid stale closures) ────────────────────────────
   const dragModeRef          = useRef<DragMode>("idle");
@@ -477,11 +503,18 @@ export default function VideoPreview({
             preload="auto"
           />
         ) : (
-          <img
-            src={`data:image/jpeg;base64,${frameBase64}`}
-            alt="Vista previa"
-            className="w-full h-full object-contain"
-          />
+          <>
+            <img
+              src={`data:image/jpeg;base64,${displayImage}`}
+              alt="Vista previa"
+              className="w-full h-full object-contain"
+            />
+            {pageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                <div className="w-6 h-6 border-2 border-ctp-blue border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </>
         )}
 
         {isVideo && videoError && (
@@ -526,6 +559,35 @@ export default function VideoPreview({
           </div>
         )}
       </div>
+
+      {/* ── Page navigation (PDF/PPTX) ──────────────────────────────────── */}
+      {hasPages && (
+        <div className="mt-2 rounded-lg bg-ctp-mantle border border-ctp-surface0 px-3 py-2">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 0 || pageLoading}
+              className="p-1.5 rounded-md hover:bg-ctp-surface0 text-ctp-subtext0 hover:text-ctp-text transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Página anterior"
+            >
+              <ChevronLeft size={18} />
+            </button>
+
+            <span className="text-xs text-ctp-overlay0 tabular-nums">
+              Página <span className="text-ctp-text font-semibold">{currentPage + 1}</span> de {pageCount}
+            </span>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= pageCount - 1 || pageLoading}
+              className="p-1.5 rounded-md hover:bg-ctp-surface0 text-ctp-subtext0 hover:text-ctp-text transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Página siguiente"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Video player controls ────────────────────────────────────────── */}
       {isVideo && (

@@ -100,6 +100,11 @@ export function getFileStreamUrl(fileId: string): string {
   return `${BACKEND_DIRECT}/api/file/${fileId}/stream`;
 }
 
+export async function getPageImage(fileId: string, pageIndex: number): Promise<{ page_index: number; image_base64: string }> {
+  const res = await fetch(`${BASE}/api/file/${fileId}/page/${pageIndex}`);
+  return handleResponse(res);
+}
+
 export function getVideoStreamUrlProxy(fileId: string): string {
   return `${BASE}/api/video/${fileId}/stream`;
 }

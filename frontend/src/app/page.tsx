@@ -204,6 +204,7 @@ export default function Home() {
                   onRegionChange={(r) => setRegion(r)}
                   filename={fileInfo.filename}
                   fileType={fileType}
+                  pageCount={fileInfo.page_count}
                 />
               </div>
 

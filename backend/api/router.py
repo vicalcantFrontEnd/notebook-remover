@@ -151,6 +151,39 @@ async def _file_info_inner(file_id: str):
     raise HTTPException(400, f"Unsupported file type: {file_type}")
 
 
+# ---- Page image (PDF/PPTX page navigation) ----
+@router.get("/file/{file_id}/page/{page_index}")
+async def get_page_image(file_id: str, page_index: int):
+    """Return a base64 JPEG of a specific page (0-indexed) for PDF/PPTX files."""
+    file_path = upload_service.get_file_path(file_id)
+    filename = upload_service.get_filename(file_id)
+    file_type = _detect_file_type(filename)
+
+    if file_type == FileType.pdf:
+        import fitz
+        doc = fitz.open(str(file_path))
+        if page_index < 0 or page_index >= len(doc):
+            doc.close()
+            raise HTTPException(400, f"Page {page_index} out of range (0-{len(doc)-1})")
+        page = doc[page_index]
+        mat = fitz.Matrix(2.0, 2.0)
+        pix = page.get_pixmap(matrix=mat)
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
+        if pix.n == 4:
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR)
+        else:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        doc.close()
+        return {"page_index": page_index, "image_base64": _frame_to_base64(img)}
+
+    if file_type == FileType.pptx:
+        from ..core.pptx_processor import extract_slide_image
+        img = extract_slide_image(file_path, page_index)
+        return {"page_index": page_index, "image_base64": _frame_to_base64(img)}
+
+    raise HTTPException(400, "Page navigation only supported for PDF and PPTX files")
+
+
 # ---- Stream (video playback / file serving) ----
 @router.get("/video/{file_id}/stream")
 async def stream_video(file_id: str, request: Request):
