@@ -1,7 +1,7 @@
 import type { VideoInfo, FileInfo, Region, PreviewRequest, JobCreateRequest, JobInfo } from "./types";
 
 const BASE = "";  // Uses Next.js rewrite proxy
-const BACKEND_DIRECT = "http://localhost:8000";  // Direct for large uploads (bypasses Next.js body limit)
+const BACKEND_DIRECT = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";  // Direct for large uploads (bypasses Next.js body limit)
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -108,6 +108,7 @@ export function getVideoStreamUrlProxy(fileId: string): string {
 }
 
 export function getWebSocketUrl(jobId: string): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//localhost:8000/api/ws/jobs/${jobId}`;
+  const backendUrl = new URL(BACKEND_DIRECT);
+  const protocol = backendUrl.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${backendUrl.host}/api/ws/jobs/${jobId}`;
 }
