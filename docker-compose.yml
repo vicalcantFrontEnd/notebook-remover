@@ -5,16 +5,11 @@ version: "3.9"
 # ============================================================
 # Services:
 #   watermark-api  →  FastAPI + Python processing (port 8000)
-#   n8n            →  Automation workflows (port 5678)
-#
-# Volumes:
-#   pipeline_data  →  SQLite DB (persists processed-file records)
-#   n8n_data       →  n8n workflows + credentials
-#   credentials    →  Google service account JSON (mount once)
+#   watermark-web  →  Next.js frontend (port 3005)
 #
 # Usage:
-#   1. Copy your google_credentials.json to ./credentials/
-#   2. Copy .env.example to .env and fill in your values
+#   1. Copy .env.example to .env and fill in your values
+#   2. Set VPS_IP=167.88.45.178 in .env
 #   3. docker compose up -d
 # ============================================================
 
@@ -51,7 +46,7 @@ services:
       - WMR_AUDIO_TRIM_END_SECONDS=${AUDIO_TRIM_END_SECONDS:-0}
 
       # App settings
-      - WMR_CORS_ORIGINS=["http://localhost:3000","http://n8n:5678"]
+      - WMR_CORS_ORIGINS=["*"]
       - WMR_MAX_CONCURRENT_JOBS=${MAX_CONCURRENT_JOBS:-1}
     volumes:
       # Google credentials (read-only)
@@ -68,27 +63,20 @@ services:
       start_period: 20s
 
   # ----------------------------------------------------------
-  # n8n Automation
+  # Next.js Frontend
   # ----------------------------------------------------------
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
+  watermark-web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_BACKEND_URL=http://${VPS_IP:-localhost}:8000
+    container_name: watermark-web
     restart: unless-stopped
     ports:
-      - "5678:5678"
+      - "3005:3000"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - N8N_HOST=${N8N_HOST:-0.0.0.0}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
-      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
-      - GENERIC_TIMEZONE=${TIMEZONE:-America/Mexico_City}
-      # Allow the n8n → watermark-api connection on the internal network
-      - NODE_FUNCTION_ALLOW_EXTERNAL=httpx
-    volumes:
-      - n8n_data:/home/node/.n8n
+      - BACKEND_URL=http://watermark-api:8000
     depends_on:
       watermark-api:
         condition: service_healthy
@@ -97,4 +85,3 @@ services:
 volumes:
   pipeline_data:
   pipeline_temp:
-  n8n_data:
