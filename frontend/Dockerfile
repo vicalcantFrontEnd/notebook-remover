@@ -7,9 +7,12 @@ RUN npm ci
 
 COPY . .
 
-# Accept backend URL as build argument (baked into the JS bundle)
+# Accept backend URLs as build arguments
 ARG NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+
+ARG BACKEND_URL=http://localhost:8000
+ENV BACKEND_URL=$BACKEND_URL
 
 RUN npm run build
 

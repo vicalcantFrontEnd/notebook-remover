@@ -71,6 +71,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_BACKEND_URL=http://${VPS_IP:-localhost}:8000
+        - BACKEND_URL=http://watermark-api:8000
     container_name: watermark-web
     restart: unless-stopped
     ports:
