@@ -82,11 +82,8 @@ export async function cancelJob(jobId: string): Promise<void> {
   return handleResponse(res);
 }
 
-export async function downloadJob(jobId: string): Promise<Blob> {
-  // Download directly from FastAPI to bypass Next.js body limits
-  const res = await fetch(`${BACKEND_DIRECT}/api/jobs/${jobId}/download`);
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-  return res.blob();
+export function getDownloadUrl(jobId: string): string {
+  return `${BACKEND_DIRECT}/api/jobs/${jobId}/download`;
 }
 
 export async function deleteJob(jobId: string): Promise<void> {

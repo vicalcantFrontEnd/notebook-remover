@@ -148,24 +148,17 @@ export default function Home() {
     removeFromQueue(queueId);
   }, [queue, removeFromQueue]);
 
-  const handleDownload = useCallback(async (jobId: string) => {
-    try {
-      const blob = await api.downloadJob(jobId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      let downloadName = "archivo_procesado";
-      if (fileInfo) {
-        const stem = fileInfo.filename.replace(/\.[^.]+$/, "");
-        const ext = fileInfo.filename.split(".").pop() ?? "mp4";
-        downloadName = `${stem}_clean.${ext}`;
-      }
-      a.download = downloadName;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err: unknown) {
-      alert(`Error al descargar: ${err instanceof Error ? err.message : err}`);
+  const handleDownload = useCallback((jobId: string) => {
+    let downloadName = "archivo_procesado";
+    if (fileInfo) {
+      const stem = fileInfo.filename.replace(/\.[^.]+$/, "");
+      const ext = fileInfo.filename.split(".").pop() ?? "mp4";
+      downloadName = `${stem}_clean.${ext}`;
     }
+    const a = document.createElement("a");
+    a.href = api.getDownloadUrl(jobId);
+    a.download = downloadName;
+    a.click();
   }, [fileInfo]);
 
   const handleNewFile = useCallback(() => {
