@@ -49,10 +49,10 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
 
-  const [method, setMethod] = useState<RemovalMethod>(fileType === "pptx" ? "delete_shapes" : "lama");
+  const [method, setMethod] = useState<RemovalMethod>(fileType === "pptx" ? "delete_shapes" : "box");
 
   useEffect(() => {
-    setMethod(fileType === "pptx" ? "delete_shapes" : "lama");
+    setMethod(fileType === "pptx" ? "delete_shapes" : "box");
   }, [fileType]);
 
   const { queue, addToQueue, setJobId, updateProgress, setStatus, removeFromQueue } = useBatchQueue();

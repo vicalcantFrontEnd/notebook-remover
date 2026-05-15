@@ -33,9 +33,9 @@ export const TRIM_RANGE = { min: 0, max: 30, step: 0.5 };
 
 /** Available removal methods per file type */
 export const METHODS_BY_TYPE: Record<FileType, RemovalMethod[]> = {
-  video: ["lama", "box"],
-  image: ["lama", "box"],
-  pdf: ["lama", "box"],
+  video: ["box"],
+  image: ["box"],
+  pdf: ["box"],
   pptx: ["delete_shapes"],
 };
 
