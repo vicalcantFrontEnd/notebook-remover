@@ -105,21 +105,20 @@ def process_pdf(
 
         cleaned = inpaint_frame(page_img, page_mask, inpaint_radius)
 
-        # Convert BGR back to RGB for PDF
-        rgb = cv2.cvtColor(cleaned, cv2.COLOR_BGR2RGB)
-
         # Create new page with same dimensions as original
         rect = page.rect
         new_page = out_doc.new_page(width=rect.width, height=rect.height)
 
-        # Encode cleaned image as PNG bytes and insert into page
-        _, png_buf = cv2.imencode(".png", cleaned)
-        img_bytes = png_buf.tobytes()
+        # Encode cleaned image as JPEG (much smaller than PNG)
+        _, jpg_buf = cv2.imencode(".jpg", cleaned, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        img_bytes = jpg_buf.tobytes()
         new_page.insert_image(rect, stream=img_bytes)
 
         if progress_callback:
             progress_callback(i + 1, total_pages)
 
-    out_doc.save(str(Path(output_path).resolve()))
+    # Save with compression and garbage collection to minimize file size
+    out_doc.save(str(Path(output_path).resolve()), garbage=4, deflate=True)
     out_doc.close()
     doc.close()
+
