@@ -115,19 +115,55 @@ def process_pdf(
         else:
             roi_img = cv2.cvtColor(roi_img, cv2.COLOR_RGB2BGR)
 
-        # Create mask for the ROI
-        roi_h, roi_w = roi_img.shape[:2]
-        if method == "pixel":
-            # For pixel method, detect watermark pixels within the ROI
-            full_region = (0, 0, roi_w, roi_h)
-            roi_mask = create_pixel_mask(roi_img, full_region, sensitivity=sensitivity)
-            if roi_mask.sum() < 100:
-                roi_mask = create_box_mask(roi_img.shape, full_region)
-        else:  # box
-            roi_mask = create_box_mask(roi_img.shape, (0, 0, roi_w, roi_h))
+        # For PDFs, fill with the detected background color (much cleaner than inpainting)
+        # Sample border pixels around the ROI to detect background color
+        border_px = []
+        border_size = max(4, int(roi_h * 0.08))  # 8% of ROI height
 
-        # Inpaint just the watermark region
-        cleaned_roi = inpaint_frame(roi_img, roi_mask, inpaint_radius)
+        # Top border (above watermark)
+        if clip_y > border_size / scale:
+            sample_rect = fitz.Rect(clip_x, clip_y - border_size / scale, clip_x2, clip_y)
+            sample_pix = page.get_pixmap(matrix=mat, clip=sample_rect)
+            sample_img = np.frombuffer(sample_pix.samples, dtype=np.uint8).reshape(
+                sample_pix.h, sample_pix.w, sample_pix.n)
+            if sample_pix.n == 4:
+                sample_img = cv2.cvtColor(sample_img, cv2.COLOR_RGBA2BGR)
+            else:
+                sample_img = cv2.cvtColor(sample_img, cv2.COLOR_RGB2BGR)
+            border_px.append(sample_img.reshape(-1, 3))
+
+        # Bottom border (below watermark)
+        if clip_y2 + border_size / scale < page_rect.height:
+            sample_rect = fitz.Rect(clip_x, clip_y2, clip_x2, clip_y2 + border_size / scale)
+            sample_pix = page.get_pixmap(matrix=mat, clip=sample_rect)
+            sample_img = np.frombuffer(sample_pix.samples, dtype=np.uint8).reshape(
+                sample_pix.h, sample_pix.w, sample_pix.n)
+            if sample_pix.n == 4:
+                sample_img = cv2.cvtColor(sample_img, cv2.COLOR_RGBA2BGR)
+            else:
+                sample_img = cv2.cvtColor(sample_img, cv2.COLOR_RGB2BGR)
+            border_px.append(sample_img.reshape(-1, 3))
+
+        if border_px:
+            all_border = np.concatenate(border_px, axis=0)
+            bg_color = tuple(int(c) for c in np.median(all_border, axis=0))
+        else:
+            bg_color = (255, 255, 255)  # default white
+
+        # Create solid fill image with background color
+        cleaned_roi = np.full_like(roi_img, bg_color[::-1] if len(bg_color) == 3 else bg_color)
+        # If pixel method, only fill where the watermark mask is; keep rest
+        if method == "pixel":
+            roi_h2, roi_w2 = roi_img.shape[:2]
+            full_region = (0, 0, roi_w2, roi_h2)
+            roi_mask = create_pixel_mask(roi_img, full_region, sensitivity=sensitivity)
+            if roi_mask.sum() > 100:
+                # Only fill masked pixels, keep the rest of ROI intact
+                mask_3ch = cv2.cvtColor(roi_mask, cv2.COLOR_GRAY2BGR)
+                fill_img = np.full_like(roi_img, bg_color)
+                cleaned_roi = np.where(mask_3ch > 0, fill_img, roi_img)
+            else:
+                cleaned_roi = roi_img  # nothing to remove
 
         # Encode the cleaned region as JPEG
         _, jpg_buf = cv2.imencode(".jpg", cleaned_roi, [cv2.IMWRITE_JPEG_QUALITY, 92])
